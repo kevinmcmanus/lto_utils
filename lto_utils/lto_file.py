@@ -256,9 +256,9 @@ class LTO_File:
 		return {'ra':bp['ra'], 'dec':bp['dec']}
 		
 	def to_pandas(self):
-		ra, dec = self.get_radec()
+		radec = self.get_radec()
 		ts = self.get_time()
-		df = pd.DataFrame({'ts':ts, 'ra':ra, 'dec':dec, **self.SpectralData})
+		df = pd.DataFrame({'ts':ts, 'ra':radec['ra'], 'dec':radec['dec'], **self.SpectralData})
 		return df
 		
 	def get_fileoffsets(self):
@@ -284,7 +284,7 @@ def getDriftScan(root, dfclip=None):
 
 	ltofiles = [f for f in listdir(root) if re.search('.*lto$',f) ]
 	df = pd.concat([__getSpectralData(root+'/'+f, dfclip=dfclip) \
-				for f in ltofiles]).reset_index()
+				for f in ltofiles]).reset_index(drop=True)
 	return df
 
 def __getSpectralCharacteristics(path):
