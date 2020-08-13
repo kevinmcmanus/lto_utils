@@ -175,8 +175,10 @@ class LTO_File:
 
 	file_struct = init_LTO_File_struct('in class def')
 	
-	def __init__(self):
+	def __init__(self, path, spectralData=True):
 		self.initialized = True
+		self.path = path
+		self.get_SpectralLine(spectralData=spectralData)
 	
 	def display(self):
 		print (self.file_struct)
@@ -191,7 +193,7 @@ class LTO_File:
 			buf = fin.read(nwords*4)
 		return buf
 		
-	def get_SpectralLine(self, dfclip=None):
+	def get_SpectralLine(self, spectralData=True, dfclip=None):
 		with open(self.path, 'rb') as fin:
 			
 			# read the file header
@@ -201,7 +203,7 @@ class LTO_File:
 				#print ('loading: ' + sect)
 				sect_dict = {}
 				for f in LTO_File_Hdr[sect]:
-                    #old bug workaround:
+					#old bug workaround:
 					#if sect=='SpectralCharacteristics' and f[0] == 'processing':
 						#fin.seek(1032) #processing field starts here!
 					fmt = '<'+ f[2]
@@ -220,22 +222,23 @@ class LTO_File:
 			nelems = lto_hdr['Spectrum']['lenfft'] +1 # each data array is this long
 			LTO_File_Data = LTO_File.file_struct['Data']
 			lto_data = {}
-			for d in LTO_File_Data:
-				fmt = '<' + str(nelems) + d[2]
-				n = calcsize(fmt)
-				buf = fin.read(n)
-				if d[1] == bool:
-					lto_data[d[0]] = (np.array(unpack(fmt, buf)) != 0)
-				else:
-					lto_data[d[0]] = np.array(unpack(fmt, buf))
-                    
-			# deal with clipping if  needed:
-			if dfclip is not None:
-				not_clipped = np.logical_and(lto_data['dopfreq'] >= dfclip[0],
-											 lto_data['dopfreq'] <= dfclip[1]) #these are the keepers
-				for d in lto_data:
-					lto_data[d] = lto_data[d][not_clipped]
-                    
+			if spectralData:
+				for d in LTO_File_Data:
+					fmt = '<' + str(nelems) + d[2]
+					n = calcsize(fmt)
+					buf = fin.read(n)
+					if d[1] == bool:
+						lto_data[d[0]] = (np.array(unpack(fmt, buf)) != 0)
+					else:
+						lto_data[d[0]] = np.array(unpack(fmt, buf))
+						
+				# deal with clipping if  needed:
+				if dfclip is not None:
+					not_clipped = np.logical_and(lto_data['dopfreq'] >= dfclip[0],
+												lto_data['dopfreq'] <= dfclip[1]) #these are the keepers
+					for d in lto_data:
+						lto_data[d] = lto_data[d][not_clipped]
+					
 			self.SpectralHeader = lto_hdr
 			self.SpectralData   = lto_data
 
@@ -246,9 +249,9 @@ class LTO_File:
 		sec = int(obs_time['second'])
 		microsec = int((obs_time['second']-sec)*1e6)
 		ts = pd.Timestamp(year=obs_time['year'], month=obs_time['month'], day=obs_time['day'],
-                hour=obs_time['hour'], minute=obs_time['minute'],
-                second=sec, microsecond=microsec,
-                tz = 'UTC')
+				hour=obs_time['hour'], minute=obs_time['minute'],
+				second=sec, microsecond=microsec,
+				tz = 'UTC')
 		return ts
 				
 	def get_radec(self):
@@ -263,7 +266,7 @@ class LTO_File:
 		
 	def get_fileoffsets(self):
 		hdr_df = pd.DataFrame([(s,v[0], v[1],v[2])  for s in self.file_struct['Header'] for v in self.file_struct['Header'][s]],
-                     columns=['Section', 'Field', 'PythonType','Format'])
+					 columns=['Section', 'Field', 'PythonType','Format'])
 		hdr_df['FileSize'] = [calcsize('<'+f.Format) for f in hdr_df.itertuples()]
 		hdr_df['Offset'] = [0]+hdr_df.FileSize.cumsum()[0:len(hdr_df)-1].tolist()
 		return hdr_df
@@ -288,13 +291,12 @@ def getDriftScan(root, dfclip=None):
 	return df
 
 def __getSpectralCharacteristics(path):
-	f = LTO_File()
-	f.set_path(path)
-	f.get_SpectralLine()
+	f = LTO_File(path, spectralData=False)
+
 	ts = f.get_time()
 	radec = f.get_radec()
 	return pd.DataFrame({**radec, **f.SpectralHeader['SpectralCharacteristics']},
-     index=[ts])
+	 index=[ts])
 
 
 def getSpectralCharacteristics(root):
@@ -303,3 +305,22 @@ def getSpectralCharacteristics(root):
 				for f in ltofiles])
 	return df
 
+
+if __name__ == "__main__":
+
+	import os
+
+	lto_data = './lto_data' # dir with testfiles
+	obs_dir = '2018_09_02'
+	obs_file = 'LTO-HI-2018-09-02-10-24-22.lto'
+
+	print(f'Current working directory: {os.getcwd()}')
+
+	lto = LTO_File(os.path.join(lto_data, obs_dir,obs_file))
+
+
+	print(lto.SpectralHeader['SpectralCharacteristics'])
+
+	print('getting spectral data')
+	lto_obs = getSpectralCharacteristics(os.path.join(lto_data,obs_dir))
+	print(f'len of lto_obs: {len(lto_obs)}')
