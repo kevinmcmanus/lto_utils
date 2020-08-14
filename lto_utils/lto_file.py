@@ -175,10 +175,10 @@ class LTO_File:
 
 	file_struct = init_LTO_File_struct('in class def')
 	
-	def __init__(self, path, spectralData=True):
+	def __init__(self, path, spectralData=True, dfclip=None):
 		self.initialized = True
 		self.path = path
-		self.get_SpectralLine(spectralData=spectralData)
+		self.get_SpectralLine(spectralData=spectralData, dfclip=dfclip)
 	
 	def display(self):
 		print (self.file_struct)
@@ -277,9 +277,7 @@ class LTO_File:
 		return np.array(['0x'+''.join(['%0*X' % (2,b[j]) for j in range(i,i+4)]) for i in range(0,l,4)])
 
 def __getSpectralData(path, dfclip):
-	f = LTO_File()
-	f.set_path(path)
-	f.get_SpectralLine(dfclip=dfclip)
+	f = LTO_File(path, dfclip = dfclip)
 	return f.to_pandas()
 	
 
@@ -324,3 +322,7 @@ if __name__ == "__main__":
 	print('getting spectral data')
 	lto_obs = getSpectralCharacteristics(os.path.join(lto_data,obs_dir))
 	print(f'len of lto_obs: {len(lto_obs)}')
+
+	print('getting driftscan')
+	ds = getDriftScan(os.path.join(lto_data, obs_dir))
+	print(f'Returned {len(ds)} rows')
