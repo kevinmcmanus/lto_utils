@@ -263,6 +263,32 @@ class LTO_File:
 		ts = self.get_time()
 		df = pd.DataFrame({'ts':ts, 'ra':radec['ra'], 'dec':radec['dec'], **self.SpectralData})
 		return df
+
+	def dfclipper(self, dfclip = (-1.0e6, 1.0e6)):
+		"""
+		returns a slice between the dfclip[0] and dfclip[1] dopler frequency values
+		dopler frequencies specified in Hz
+		returned slicer slices any of the self.SpectralData vectors
+		"""
+		#find dopler bin corresponding to 0 doppler shift (middle cell of the SpectralData arrays)
+		freq0 = self.SpectralHeader['Spectrum']['lenfft']//2
+		
+		assert self.SpectralData['dopfreq'][freq0] == 0.0
+		
+		# lo & hi clip limits
+		lo, hi = dfclip
+
+		#dopler bin width:
+		binwidth = self.SpectralHeader['Spectrum']['dfs']
+		
+		#number of bins down and up
+		bd = int(np.floor(lo/binwidth))
+		bu = int(np.ceil(hi/binwidth))
+		
+		#make the slicer
+		s = slice(freq0+bd, freq0+bu+1)
+		
+		return s
 		
 	def get_fileoffsets(self):
 		hdr_df = pd.DataFrame([(s,v[0], v[1],v[2])  for s in self.file_struct['Header'] for v in self.file_struct['Header'][s]],
@@ -284,6 +310,7 @@ def __getSpectralData(path, dfclip):
 def getDriftScan(root, dfclip=None):
 
 	ltofiles = [f for f in listdir(root) if re.search('.*lto$',f) ]
+	ltofiles.sort()
 	df = pd.concat([__getSpectralData(root+'/'+f, dfclip=dfclip) \
 				for f in ltofiles]).reset_index(drop=True)
 	return df
@@ -299,30 +326,42 @@ def __getSpectralCharacteristics(path):
 
 def getSpectralCharacteristics(root):
 	ltofiles = [f for f in listdir(root) if re.search('.*lto$',f) ]
+	ltofiles.sort()
 	df = pd.concat([__getSpectralCharacteristics(root+'/'+f) \
 				for f in ltofiles])
 	return df
 
 
 if __name__ == "__main__":
+	import matplotlib.pyplot as plt
 
 	import os
 
-	lto_data = './lto_data' # dir with testfiles
-	obs_dir = '2018_09_02'
-	obs_file = 'LTO-HI-2018-09-02-10-24-22.lto'
+	obs_dir = './local_data' # dir where the observations live
+	obs_date = '2020_08_10' # dir of the day's observations
+	obs_file = 'LTO-SRGA-2020-08-10-03-43-50.lto' #a particular minute's observation
 
 	print(f'Current working directory: {os.getcwd()}')
 
-	lto = LTO_File(os.path.join(lto_data, obs_dir,obs_file))
+	lto = LTO_File(os.path.join(obs_dir, obs_date,obs_file))
 
 
 	print(lto.SpectralHeader['SpectralCharacteristics'])
 
+	s = lto.dfclipper(dfclip = (.25e6, 1.75e6))
+	print(f'Slice returned: {s}')
+
+	freqs = lto.SpectralData['dopfreq'][s]
+	temps = lto.SpectralData['tsky'][s]
+
+	plt.plot(freqs, temps)
+	plt.show()
+
+
 	print('getting spectral data')
-	lto_obs = getSpectralCharacteristics(os.path.join(lto_data,obs_dir))
+	lto_obs = getSpectralCharacteristics(os.path.join(obs_dir,obs_date))
 	print(f'len of lto_obs: {len(lto_obs)}')
 
 	print('getting driftscan')
-	ds = getDriftScan(os.path.join(lto_data, obs_dir))
+	ds = getDriftScan(os.path.join(obs_dir, obs_date))
 	print(f'Returned {len(ds)} rows')
