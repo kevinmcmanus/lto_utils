@@ -171,7 +171,7 @@ def init_LTO_File_struct(call_site):
 	]
 	return {'Header': LTO_File_Hdr, 'Data':LTO_File_Data}
 	
-class LTO_File:
+class LTO_File():
 
 	file_struct = init_LTO_File_struct('in class def')
 	
@@ -180,6 +180,17 @@ class LTO_File:
 		self.path = path
 		self.get_SpectralLine(spectralData=spectralData, dfclip=dfclip)
 	
+	def __str__(self):
+		obs_time = self.get_time()
+		bp = self.SpectralHeader['BeamPosition']
+		s = 'LTO File; Obs Time: {}, Az: {:.2f}, El: {:.2f}, RA: {:.2f}, Dec: {:.2f}, from file: {}'.format(
+			obs_time.strftime('%Y-%m-%d %H:%M:%S UT'),
+			bp['az'], bp['el'], bp['ra'], bp['dec'], self.path)
+		return s
+
+	def __repr__(self):
+		return self.__str__()
+
 	def display(self):
 		print (self.file_struct)
 
@@ -302,6 +313,8 @@ class LTO_File:
 		l = len(b)
 		return np.array(['0x'+''.join(['%0*X' % (2,b[j]) for j in range(i,i+4)]) for i in range(0,l,4)])
 
+import os
+
 def __getSpectralData(path, dfclip):
 	f = LTO_File(path, dfclip = dfclip)
 	return f.to_pandas()
@@ -331,6 +344,15 @@ def getSpectralCharacteristics(root):
 				for f in ltofiles])
 	return df
 
+def getLTOobs(root):
+	ltofiles = [f for f in listdir(root) if re.search('.*lto$',f) ]
+	ltofiles.sort()
+	nfiles = len(ltofiles)
+	file_i = 0
+	while file_i < nfiles:
+		lto = LTO_File(os.path.join(root,ltofiles[file_i]))
+		yield lto
+		file_i += 1
 
 if __name__ == "__main__":
 	import matplotlib.pyplot as plt
@@ -357,6 +379,9 @@ if __name__ == "__main__":
 	plt.plot(freqs, temps)
 	plt.show()
 
+	print('Iterating over observations')
+	for l in getLTOobs(os.path.join(obs_dir,obs_date)):
+		print(l)
 
 	print('getting spectral data')
 	lto_obs = getSpectralCharacteristics(os.path.join(obs_dir,obs_date))
